@@ -49,7 +49,7 @@ function Login({ navigate, notify }) {
   }, [solicitudPendienteUid, notify]);
 
   const iniciarSesion = (usuario) => {
-    if (usuario.estado === 'pendiente') {
+    if (usuario.estado === 'activo') {
       notify('Tu cuenta está pendiente de aprobación por el administrador.', 'info');
       return;
     }
@@ -127,66 +127,79 @@ function Login({ navigate, notify }) {
   };
 
   const crearCuenta = async (e) => {
-    e.preventDefault();
-    const nombre = registro.nombre.trim();
-    const apellido = registro.apellido.trim();
-    const rut = registro.rut.trim();
-    const correo = registro.correo.trim().toLowerCase();
-    const contrasena = registro.contrasena.trim();
-    const telefono = registro.telefono.trim();
+  e.preventDefault();
 
-    if (!nombre || !apellido || !rut || !correo || !contrasena || !telefono) {
-      notify('Completa todos los campos para crear la cuenta.', 'error');
-      return;
+  const nombre = registro.nombre.trim();
+  const apellido = registro.apellido.trim();
+  const rut = registro.rut.trim();
+  const correo = registro.correo.trim().toLowerCase();
+  const contrasena = registro.contrasena.trim();
+  const telefono = registro.telefono.trim();
+
+  if (!nombre || !apellido || !rut || !correo || !contrasena || !telefono) {
+    notify("Completa todos los campos.", "error");
+    return;
+  }
+
+  if (!rutConFormatoValido(rut) || !rutValido(rut)) {
+    notify("Ingresa un RUT válido.", "error");
+    return;
+  }
+
+  if (!contrasenaSegura(contrasena)) {
+    notify(mensajeContrasenaSegura, "error");
+    return;
+  }
+
+  try {
+    // Crear usuario en Firebase Authentication
+    const credenciales = await createUserWithEmailAndPassword(
+      auth,
+      correo,
+      contrasena
+    );
+
+    const uid = credenciales.user.uid;
+
+    // Crear usuario directamente en Firestore
+    await setDoc(doc(db, "usuarios", uid), {
+      uid,
+      user: correo,
+      nombre,
+      apellido,
+      rut,
+      telefono,
+      rol: "admin",
+      estado: "activo",
+      local: "Administración",
+      creadaEn: new Date().toISOString(),
+    });
+
+    notify("Cuenta creada correctamente. Ya puedes iniciar sesión.", "success");
+
+    setRegistro({
+      nombre: "",
+      apellido: "",
+      rut: "",
+      correo: "",
+      contrasena: "",
+      telefono: "",
+    });
+
+    setModoRegistro(false);
+
+  } catch (error) {
+    console.error(error);
+
+    if (error.code === "auth/email-already-in-use") {
+      notify("El correo ya está registrado.", "error");
+    } else if (error.code === "auth/invalid-email") {
+      notify("El correo no es válido.", "error");
+    } else {
+      notify("No se pudo crear la cuenta.", "error");
     }
-
-    if (!rutConFormatoValido(rut) || !rutValido(rut)) {
-      notify('Ingresa un RUT válido con formato 12.345.678-9.', 'error');
-      return;
-    }
-
-    if (!contrasenaSegura(contrasena)) {
-      notify(mensajeContrasenaSegura, 'error');
-      return;
-    }
-
-    try {
-      const credenciales = await createUserWithEmailAndPassword(auth, correo, contrasena);
-      const uid = credenciales.user.uid;
-      const solicitud = {
-        uid,
-        user: correo,
-        nombre,
-        apellido,
-        rut,
-        telefono,
-        rol: 'admin',
-        local: 'activo',
-        estado: 'administración',
-        creadaEn: new Date().toISOString(),
-      };
-
-      await setDoc(doc(db, 'solicitudesUsuarios', uid), solicitud);
-      await setDoc(doc(db, 'notificacionesAdmin', `usuario-${uid}`), {
-        tipo: 'solicitud_usuario',
-        mensaje: `${nombre} ${apellido} solicitó crear una cuenta.`,
-        uid,
-        leida: false,
-        creadaEn: new Date().toISOString(),
-      });
-
-      setRegistro({ nombre: '', apellido: '', rut: '', correo: '', contrasena: '', telefono: '' });
-      setModoRegistro(false);
-      activarEscuchaSolicitud(uid);
-      notify('Cuenta solicitada. El administrador debe aprobarla y asignar el rol.', 'success');
-    } catch (error) {
-      console.error('Error al crear solicitud:', error);
-      if (error.code === 'auth/email-already-in-use') notify('El correo ya está registrado.', 'error');
-      else if (error.code === 'auth/invalid-email') notify('El correo no es válido.', 'error');
-      else if (error.code === 'permission-denied') notify('Firebase no permite guardar la solicitud. Revisa las reglas.', 'error');
-      else notify('No se pudo crear la cuenta.', 'error');
-    }
-  };
+  }
+};
 
   return (
     <main className="auth-page">
