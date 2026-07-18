@@ -1,22 +1,21 @@
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: "AIzaSyB0QG_CRO-bH0s2OpnOJ76vla0JmsYvCDA",
+  authDomain: "sistema-clarisa.firebaseapp.com",
+  projectId: "sistema-clarisa",
+  storageBucket: "sistema-clarisa.firebasestorage.app",
+  messagingSenderId: "334666056320",
+  appId: "1:334666056320:web:4c5d3922bd2deb649b5c65",
+  measurementId: "G-N864FS8865"
 };
 
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-const auth = getAuth(app);
-const db = getFirestore(app);
 
-export { app, analytics, auth, db };
+// Exportar Auth y Firestore
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+
+export default app;

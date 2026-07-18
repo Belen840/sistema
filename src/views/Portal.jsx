@@ -129,11 +129,14 @@ function Portal({ navigate, notify }) {
             <small>Ver resumen de ventas y control general.</small>
           </button>
 
-          <button onClick={() => notify('Derivando al Módulo de Inventario (Equipo N 4).', 'info')} className="module-card module-blue">
-            <span className="module-icon">Stock</span>
-            <strong>Inventario</strong>
-            <small>Consulta y control de productos.</small>
-          </button>
+          <button
+  onClick={() => navigate("inventario")}
+  className="module-card module-blue"
+>
+  <span className="module-icon">📦</span>
+  <strong>Inventario</strong>
+  <small>Consulta y control de productos.</small>
+</button>
 
           <button onClick={() => setMostrarSolicitudes(true)} className="module-card module-orange">
             <span className="module-icon">User</span>

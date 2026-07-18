@@ -6,6 +6,11 @@ import Almacen from './views/Almacen';
 import Delivery from './views/Delivery';
 import Cafeteria from './views/Cafeteria';
 import ComidaRapida from './views/ComidaRapida';
+import Dashboard from "./views/Inventario/Dashboard";
+import PortalInventario from "./views/Inventario/PortalInventario";
+import RegistroProducto from "./views/Inventario/RegistroProducto";
+import Productos from "./views/Inventario/Productos";
+import Historial from "./views/Inventario/Historial";
 import { asegurarAdminInicial, crearToast, guardarVistaActual, obtenerVistaGuardada } from './controllers/appController';
 import './styles/App.css';
 
@@ -33,6 +38,35 @@ function App() {
       case 'login': return <Login navigate={navigate} notify={notify} />;
       case 'portal': return <Portal navigate={navigate} notify={notify} />;
       case 'admin': return <Admin navigate={navigate} />;
+      case "historial":
+  return (
+    <Historial
+      navigate={navigate}
+      notify={notify}
+    />
+  );
+  case "inventario":
+  return (
+    <PortalInventario
+      navigate={navigate}
+      notify={notify}
+    />
+  );
+case "productos":
+  return (
+    <Productos
+      navigate={navigate}
+      notify={notify}
+    />
+  );
+case "registroProducto":
+  return (
+    <RegistroProducto
+      navigate={navigate}
+      notify={notify}
+    />
+  );
+  return <Dashboard navigate={navigate} />;
       case 'almacen': return <Almacen navigate={navigate} notify={notify} />;
       case 'delivery': return <Delivery navigate={navigate} notify={notify} />;
       case 'cafeteria': return <Cafeteria navigate={navigate} notify={notify} />;
