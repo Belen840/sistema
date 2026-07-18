@@ -96,7 +96,7 @@ function Login({ navigate, notify }) {
         return;
       }
 
-      activarEscuchaSolicitud(uid);
+   
       notify('Tu cuenta existe en Auth, pero aún no fue aprobada por el administrador.', 'info');
     } catch (error) {
       console.error(error);
