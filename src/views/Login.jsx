@@ -160,9 +160,9 @@ function Login({ navigate, notify }) {
         apellido,
         rut,
         telefono,
-        rol: 'pendiente',
-        local: 'pendiente',
-        estado: 'pendiente',
+        rol: 'admin',
+        local: 'activo',
+        estado: 'administración',
         creadaEn: new Date().toISOString(),
       };
 
