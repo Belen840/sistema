@@ -1,255 +1,446 @@
-import React, { useEffect, useState } from 'react';
-import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, limit, onSnapshot, query, setDoc, where } from 'firebase/firestore';
-import { contrasenaSegura, mensajeContrasenaSegura, obtenerVistaInicial, rutConFormatoValido, rutValido } from '../models/authModel';
-import { auth, db } from '../firebase';
-import '../styles/views/login.css';
+import React, { useState } from "react";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+} from "firebase/auth";
+
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+} from "firebase/firestore";
+
+import {
+  contrasenaSegura,
+  mensajeContrasenaSegura,
+  obtenerVistaInicial,
+  rutConFormatoValido,
+  rutValido,
+} from "../models/authModel";
+
+import { auth, db } from "../firebase";
+import "../styles/views/login.css";
 
 function Login({ navigate, notify }) {
-  const [user, setUser] = useState('');
-  const [pass, setPass] = useState('');
+  const [user, setUser] = useState("");
+  const [pass, setPass] = useState("");
   const [modoRegistro, setModoRegistro] = useState(false);
-  const [solicitudPendienteUid, setSolicitudPendienteUid] = useState(() => localStorage.getItem('solicitudPendienteUid') || '');
+
   const [registro, setRegistro] = useState({
-    nombre: '',
-    apellido: '',
-    rut: '',
-    correo: '',
-    contrasena: '',
-    telefono: '',
+    nombre: "",
+    apellido: "",
+    rut: "",
+    correo: "",
+    contrasena: "",
+    telefono: "",
   });
 
-  useEffect(() => {
-    if (!solicitudPendienteUid) return undefined;
-
-    const cancelarEscucha = onSnapshot(
-      doc(db, 'solicitudesUsuarios', solicitudPendienteUid),
-      (resultado) => {
-        if (!resultado.exists()) return;
-
-        const solicitud = resultado.data();
-        if (solicitud.estado === 'rechazada') {
-          notify('Tu solicitud de creación de cuenta fue rechazada.', 'error');
-          localStorage.removeItem('solicitudPendienteUid');
-          setSolicitudPendienteUid('');
-        }
-
-        if (solicitud.estado === 'aceptada') {
-          notify('Tu cuenta fue aceptada. Ya puedes iniciar sesión.', 'success');
-          localStorage.removeItem('solicitudPendienteUid');
-          setSolicitudPendienteUid('');
-        }
-      },
-      (error) => {
-        console.error('No se pudo escuchar la solicitud:', error);
-      },
-    );
-
-    return () => cancelarEscucha();
-  }, [solicitudPendienteUid, notify]);
+  const actualizarRegistro = (campo, valor) => {
+    setRegistro({
+      ...registro,
+      [campo]: valor,
+    });
+  };
 
   const iniciarSesion = (usuario) => {
-    if (usuario.estado === 'activo') {
-      notify('Tu cuenta está pendiente de aprobación por el administrador.', 'info');
+    if (usuario.estado !== "activo") {
+      notify("Tu cuenta está deshabilitada.", "error");
       return;
     }
 
-    localStorage.setItem('sesion', JSON.stringify(usuario));
-    notify('Bienvenido/a ' + (usuario.nombre || usuario.user), 'success');
+    localStorage.setItem("sesion", JSON.stringify(usuario));
+
+    notify(
+      `Bienvenido ${usuario.nombre}`,
+      "success"
+    );
+
     navigate(obtenerVistaInicial(usuario));
-  };
-
-  const buscarUsuarioFirestore = async (email) => {
-    const usuariosRef = collection(db, 'usuarios');
-    const consulta = query(usuariosRef, where('user', '==', email), limit(1));
-    const resultado = await getDocs(consulta);
-    return resultado.empty ? null : resultado.docs[0].data();
-  };
-
-  const activarEscuchaSolicitud = (uid) => {
-    localStorage.setItem('solicitudPendienteUid', uid);
-    setSolicitudPendienteUid(uid);
   };
 
   const handleLogin = async () => {
     const email = user.trim().toLowerCase();
-    const p = pass.trim();
+    const password = pass.trim();
 
-    if (!email || !p) {
-      notify('Por favor, ingresa tu correo y contraseña.', 'error');
+    if (!email || !password) {
+      notify(
+        "Ingresa correo y contraseña.",
+        "error"
+      );
       return;
     }
 
     try {
-      const credenciales = await signInWithEmailAndPassword(auth, email, p);
+      const credenciales =
+        await signInWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+
       const uid = credenciales.user.uid;
-      const docSnap = await getDoc(doc(db, 'usuarios', uid));
 
-      if (docSnap.exists()) {
-        iniciarSesion({ uid, ...docSnap.data() });
+      const usuario = await getDoc(
+        doc(db, "usuarios", uid)
+      );
+
+      if (!usuario.exists()) {
+        notify(
+          "Este usuario no existe en Firestore.",
+          "error"
+        );
         return;
       }
 
-      const usuarioPorCorreo = await buscarUsuarioFirestore(email);
-      if (usuarioPorCorreo) {
-        iniciarSesion(usuarioPorCorreo);
-        return;
-      }
+      iniciarSesion({
+        uid,
+        ...usuario.data(),
+      });
 
-   
-      notify('Tu cuenta existe en Auth, pero aún no fue aprobada por el administrador.', 'info');
     } catch (error) {
       console.error(error);
-      notify('Correo o contraseña incorrectos, o cuenta aún no aprobada.', 'error');
+      notify(
+        "Correo o contraseña incorrectos.",
+        "error"
+      );
     }
   };
 
   const restablecerContrasena = async () => {
-    const email = user.trim().toLowerCase();
+    const correo = user.trim().toLowerCase();
 
-    if (!email) {
-      notify('Ingresa tu correo electrónico para restablecer la contraseña.', 'error');
+    if (!correo) {
+      notify(
+        "Ingresa tu correo.",
+        "error"
+      );
       return;
     }
 
     try {
-      await sendPasswordResetEmail(auth, email);
-      notify('Te enviamos un correo para restablecer la contraseña.', 'success');
-    } catch (error) {
-      console.error('Error al enviar restablecimiento de contraseña:', error);
-      if (error.code === 'auth/invalid-email') notify('El correo no es válido.', 'error');
-      else notify('No se pudo enviar el correo de restablecimiento.', 'error');
-    }
-  };
+      await sendPasswordResetEmail(
+        auth,
+        correo
+      );
 
-  const actualizarRegistro = (campo, valor) => {
-    setRegistro({ ...registro, [campo]: valor });
+      notify(
+        "Correo enviado correctamente.",
+        "success"
+      );
+
+    } catch (error) {
+      console.error(error);
+      notify(
+        "No se pudo enviar el correo.",
+        "error"
+      );
+    }
   };
 
   const crearCuenta = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  const nombre = registro.nombre.trim();
-  const apellido = registro.apellido.trim();
-  const rut = registro.rut.trim();
-  const correo = registro.correo.trim().toLowerCase();
-  const contrasena = registro.contrasena.trim();
-  const telefono = registro.telefono.trim();
+    const nombre = registro.nombre.trim();
+    const apellido = registro.apellido.trim();
+    const rut = registro.rut.trim();
+    const correo = registro.correo.trim().toLowerCase();
+    const contrasena = registro.contrasena.trim();
+    const telefono = registro.telefono.trim();
 
-  if (!nombre || !apellido || !rut || !correo || !contrasena || !telefono) {
-    notify("Completa todos los campos.", "error");
-    return;
-  }
-
-  if (!rutConFormatoValido(rut) || !rutValido(rut)) {
-    notify("Ingresa un RUT válido.", "error");
-    return;
-  }
-
-  if (!contrasenaSegura(contrasena)) {
-    notify(mensajeContrasenaSegura, "error");
-    return;
-  }
-
-  try {
-    // Crear usuario en Firebase Authentication
-    const credenciales = await createUserWithEmailAndPassword(
-      auth,
-      correo,
-      contrasena
-    );
-
-    const uid = credenciales.user.uid;
-
-    // Crear usuario directamente en Firestore
-    await setDoc(doc(db, "usuarios", uid), {
-      uid,
-      user: correo,
-      nombre,
-      apellido,
-      rut,
-      telefono,
-      rol: "admin",
-      estado: "activo",
-      local: "Administración",
-      creadaEn: new Date().toISOString(),
-    });
-
-    notify("Cuenta creada correctamente. Ya puedes iniciar sesión.", "success");
-
-    setRegistro({
-      nombre: "",
-      apellido: "",
-      rut: "",
-      correo: "",
-      contrasena: "",
-      telefono: "",
-    });
-
-    setModoRegistro(false);
-
-  } catch (error) {
-    console.error(error);
-
-    if (error.code === "auth/email-already-in-use") {
-      notify("El correo ya está registrado.", "error");
-    } else if (error.code === "auth/invalid-email") {
-      notify("El correo no es válido.", "error");
-    } else {
-      notify("No se pudo crear la cuenta.", "error");
+    if (
+      !nombre ||
+      !apellido ||
+      !rut ||
+      !correo ||
+      !contrasena ||
+      !telefono
+    ) {
+      notify(
+        "Completa todos los campos.",
+        "error"
+      );
+      return;
     }
-  }
-};
+
+    if (
+      !rutConFormatoValido(rut) ||
+      !rutValido(rut)
+    ) {
+      notify(
+        "RUT inválido.",
+        "error"
+      );
+      return;
+    }
+
+    if (!contrasenaSegura(contrasena)) {
+      notify(
+        mensajeContrasenaSegura,
+        "error"
+      );
+      return;
+    }
+
+    try {
+
+      // Verificar si ya existe un administrador
+      const usuarios = await getDocs(
+        collection(db, "usuarios")
+      );
+
+      const primerUsuario =
+        usuarios.empty;
+
+      const credenciales =
+        await createUserWithEmailAndPassword(
+          auth,
+          correo,
+          contrasena
+        );
+
+      const uid =
+        credenciales.user.uid;
+
+      await setDoc(
+        doc(db, "usuarios", uid),
+        {
+          uid,
+          user: correo,
+          nombre,
+          apellido,
+          rut,
+          telefono,
+
+          rol: primerUsuario
+            ? "admin"
+            : "empleado",
+
+          estado: "activo",
+
+          local: primerUsuario
+            ? "Administración"
+            : "General",
+
+          creadaEn:
+            new Date().toISOString(),
+        }
+      );
+
+      notify(
+        primerUsuario
+          ? "Administrador creado correctamente."
+          : "Usuario creado correctamente.",
+        "success"
+      );
+
+      setRegistro({
+        nombre: "",
+        apellido: "",
+        rut: "",
+        correo: "",
+        contrasena: "",
+        telefono: "",
+      });
+
+      setModoRegistro(false);
+
+    } catch (error) {
+
+      console.error(error);
+
+      if (
+        error.code ===
+        "auth/email-already-in-use"
+      ) {
+        notify(
+          "Ese correo ya existe.",
+          "error"
+        );
+      } else {
+        notify(
+          "No se pudo crear la cuenta.",
+          "error"
+        );
+      }
+    }
+  };
 
   return (
-    <main className="auth-page">
+        <main className="auth-page">
       <section className="auth-panel">
+
         <div className="brand-mark">SV</div>
-        <p className="eyebrow">Sistema de venta e inventario</p>
-        <h1>{modoRegistro ? 'Crear cuenta' : 'Iniciar sesión'}</h1>
+
+        <p className="eyebrow">
+          Sistema de venta e inventario
+        </p>
+
+        <h1>
+          {modoRegistro ? "Crear cuenta" : "Iniciar sesión"}
+        </h1>
+
         <p className="muted">
-          {modoRegistro ? 'Tu solicitud quedará pendiente hasta que el administrador la acepte.' : 'Ingresa con tu correo para entrar directo a tu módulo.'}
+          {modoRegistro
+            ? "Completa el formulario para crear una cuenta."
+            : "Ingresa con tu correo electrónico."}
         </p>
 
         {modoRegistro ? (
-          <form onSubmit={crearCuenta} className="auth-register-form">
-            <input className="field" value={registro.nombre} onChange={(e) => actualizarRegistro('nombre', e.target.value)} placeholder="Nombres" />
-            <input className="field" value={registro.apellido} onChange={(e) => actualizarRegistro('apellido', e.target.value)} placeholder="Apellidos" />
-            <input className="field" value={registro.rut} onChange={(e) => actualizarRegistro('rut', e.target.value)} placeholder="RUT 12.345.678-9" />
-            <input className="field" type="email" value={registro.correo} onChange={(e) => actualizarRegistro('correo', e.target.value)} placeholder="Correo electrónico" />
-            <input className="field" type="password" value={registro.contrasena} onChange={(e) => actualizarRegistro('contrasena', e.target.value)} placeholder="Contraseña" />
-            <input className="field" value={registro.telefono} onChange={(e) => actualizarRegistro('telefono', e.target.value)} placeholder="Número de teléfono" />
-            <p className="hint">{mensajeContrasenaSegura}</p>
-            <button type="submit" className="btn btn-primary btn-full">Solicitar cuenta</button>
-          </form>
-        ) : (
-          <>
+
+          <form
+            onSubmit={crearCuenta}
+            className="auth-register-form"
+          >
+
             <input
-              value={user}
-              onChange={(e) => setUser(e.target.value)}
-              placeholder="Correo electrónico"
               className="field"
+              placeholder="Nombres"
+              value={registro.nombre}
+              onChange={(e) =>
+                actualizarRegistro(
+                  "nombre",
+                  e.target.value
+                )
+              }
             />
+
+            <input
+              className="field"
+              placeholder="Apellidos"
+              value={registro.apellido}
+              onChange={(e) =>
+                actualizarRegistro(
+                  "apellido",
+                  e.target.value
+                )
+              }
+            />
+
+            <input
+              className="field"
+              placeholder="RUT"
+              value={registro.rut}
+              onChange={(e) =>
+                actualizarRegistro(
+                  "rut",
+                  e.target.value
+                )
+              }
+            />
+
+            <input
+              type="email"
+              className="field"
+              placeholder="Correo"
+              value={registro.correo}
+              onChange={(e) =>
+                actualizarRegistro(
+                  "correo",
+                  e.target.value
+                )
+              }
+            />
+
             <input
               type="password"
-              value={pass}
-              onChange={(e) => setPass(e.target.value)}
-              placeholder="Contraseña"
               className="field"
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+              placeholder="Contraseña"
+              value={registro.contrasena}
+              onChange={(e) =>
+                actualizarRegistro(
+                  "contrasena",
+                  e.target.value
+                )
+              }
             />
-            <button type="button" onClick={restablecerContrasena} className="link-button auth-reset">
+
+            <input
+              className="field"
+              placeholder="Teléfono"
+              value={registro.telefono}
+              onChange={(e) =>
+                actualizarRegistro(
+                  "telefono",
+                  e.target.value
+                )
+              }
+            />
+
+            <p className="hint">
+              {mensajeContrasenaSegura}
+            </p>
+
+            <button
+              type="submit"
+              className="btn btn-primary btn-full"
+            >
+              Crear cuenta
+            </button>
+
+          </form>
+
+        ) : (
+
+          <>
+
+            <input
+              className="field"
+              placeholder="Correo electrónico"
+              value={user}
+              onChange={(e) =>
+                setUser(e.target.value)
+              }
+            />
+
+            <input
+              type="password"
+              className="field"
+              placeholder="Contraseña"
+              value={pass}
+              onChange={(e) =>
+                setPass(e.target.value)
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleLogin();
+                }
+              }}
+            />
+
+            <button
+              type="button"
+              className="link-button auth-reset"
+              onClick={restablecerContrasena}
+            >
               ¿Olvidaste tu contraseña?
             </button>
-            <button onClick={handleLogin} className="btn btn-primary btn-full">
+
+            <button
+              className="btn btn-primary btn-full"
+              onClick={handleLogin}
+            >
               Entrar
             </button>
+
           </>
+
         )}
 
-        <button type="button" className="btn btn-secondary btn-full" onClick={() => setModoRegistro(!modoRegistro)}>
-          {modoRegistro ? 'Volver al inicio de sesión' : 'Crear cuenta'}
+        <button
+          type="button"
+          className="btn btn-secondary btn-full"
+          onClick={() =>
+            setModoRegistro(!modoRegistro)
+          }
+        >
+          {modoRegistro
+            ? "Volver al inicio de sesión"
+            : "Crear cuenta"}
         </button>
+
       </section>
     </main>
   );
